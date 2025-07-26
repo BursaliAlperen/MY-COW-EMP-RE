@@ -356,6 +356,10 @@ h1, h2, h3, button {
      color: var(--brown);
 }
 
+#referral-card p:last-of-type {
+    margin-bottom: 0;
+}
+
 .referral-link-container {
     display: flex;
     margin-top: 10px;
@@ -427,6 +431,26 @@ h1, h2, h3, button {
     font-size: 2em;
     cursor: pointer;
     color: var(--text-color);
+}
+
+.offline-reward {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2em;
+    font-family: 'Luckiest Guy', cursive;
+    color: var(--brown);
+    margin: 20px 0;
+}
+
+.offline-reward img {
+    width: 40px;
+    margin-right: 10px;
+}
+
+.modal-content #claim-offline-earnings {
+    font-size: 1.2em;
+    padding: 15px 30px;
 }
 
 .coming-soon {

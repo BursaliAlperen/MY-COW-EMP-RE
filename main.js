@@ -11,7 +11,7 @@ const mainCowEl = document.getElementById('main-cow');
 const milkSplashEl = document.getElementById('milk-splash');
 
 const swapButton = document.getElementById('swap-button');
-const referralButton = document.getElementById('referral-button'); // Renamed from top-ad-button
+const referralButton = document.getElementById('referral-button');
 
 // Ad button
 const watchAdButton = document.getElementById('watch-ad-button');
@@ -27,23 +27,34 @@ const referralModalClose = document.getElementById('referral-modal-close');
 const referralLinkInput = document.getElementById('referral-link');
 const copyRefLinkButton = document.getElementById('copy-ref-link-button');
 const refBonusDisplay = document.getElementById('ref-bonus-display');
+const referralLinkInputModal = document.getElementById('referral-link-modal');
+const copyRefLinkButtonModal = document.getElementById('copy-ref-link-button-modal');
+const refBonusDisplayModal = document.querySelector('.ref-bonus-display-modal');
+
+// Offline Earnings Elements
+const offlineEarningsModal = document.getElementById('offline-earnings-modal');
+const offlineModalClose = document.getElementById('offline-modal-close');
+const claimOfflineEarningsButton = document.getElementById('claim-offline-earnings');
+const offlineMilkEarnedEl = document.getElementById('offline-milk-earned');
 
 // --- GAME STATE ---
 const state = {
     milk: 0,
     cowCoin: 0,
+    lastUpdate: Date.now(),
     swapCost: 50000,
     baseRate: 0.5,
     referral: {
         userId: null,
         referralCount: 0, // Number of people this user has referred
         bonusPerReferral: 0.05, // 5% bonus per referral
-        referredBy: null // ID of the user who referred this player
+        referredBy: null, // ID of the user who referred this player
+        claimedReferral: false, // Has this user claimed their "referred by" bonus?
     },
     upgrades: {
-        quality: { level: 1, multiplier: 1, baseCost: 100, costGrowth: 1.15, effect: 0.05, el: document.getElementById('upgrade-quality') },
-        count: { level: 1, multiplier: 1, baseCost: 250, costGrowth: 1.18, effect: 0.1, el: document.getElementById('upgrade-count') },
-        happiness: { level: 1, multiplier: 1, baseCost: 500, costGrowth: 1.22, effect: 0.15, el: document.getElementById('upgrade-happiness') }
+        quality: { level: 1, multiplier: 1, baseCost: 100, costGrowth: 2.0, effect: 0.10, el: document.getElementById('upgrade-quality') },
+        count: { level: 1, multiplier: 1, baseCost: 250, costGrowth: 2.1, effect: 0.20, el: document.getElementById('upgrade-count') },
+        happiness: { level: 1, multiplier: 1, baseCost: 500, costGrowth: 2.2, effect: 0.30, el: document.getElementById('upgrade-happiness') }
     }
 };
 
@@ -59,6 +70,7 @@ function saveState() {
     const stateToSave = {
         milk: state.milk,
         cowCoin: state.cowCoin,
+        lastUpdate: state.lastUpdate,
         referral: state.referral, // Save referral state
         upgrades: {
             quality: { level: state.upgrades.quality.level },
@@ -76,6 +88,7 @@ function loadState() {
         
         state.milk = savedState.milk || 0;
         state.cowCoin = savedState.cowCoin || 0;
+        state.lastUpdate = savedState.lastUpdate || Date.now();
 
         if (savedState.referral) {
             state.referral = { ...state.referral, ...savedState.referral };
@@ -106,6 +119,32 @@ function calculateMilkPerSecond() {
     const { quality, count, happiness } = upgrades;
     const referralBonus = 1 + (referral.referralCount * referral.bonusPerReferral);
     return baseRate * quality.multiplier * count.multiplier * happiness.multiplier * referralBonus;
+}
+
+// Offline earnings calculation
+function calculateOfflineEarnings() {
+    const now = Date.now();
+    const timeDiffSeconds = Math.floor((now - state.lastUpdate) / 1000);
+    state.lastUpdate = now; // Update timestamp immediately
+
+    if (timeDiffSeconds <= 10) return; // Ignore short periods
+
+    // Cap offline time to 2 hours (7200 seconds)
+    const effectiveTime = Math.min(timeDiffSeconds, 7200);
+    const milkPerSecond = calculateMilkPerSecond();
+    const offlineMilk = effectiveTime * milkPerSecond;
+
+    if (offlineMilk > 0) {
+        offlineMilkEarnedEl.textContent = formatNumber(offlineMilk, true);
+        offlineEarningsModal.style.display = 'flex';
+        
+        claimOfflineEarningsButton.onclick = () => {
+            state.milk += offlineMilk;
+            offlineEarningsModal.style.display = 'none';
+            showNotification(`+${formatNumber(offlineMilk, true)} süt toplandı!`);
+            updateAllUI();
+        };
+    }
 }
 
 // Function to handle ad logic
@@ -195,18 +234,21 @@ function showNotification(message, duration = 4000) {
 }
 
 // Format large numbers
-function formatNumber(num) {
-    if (num < 1000) return num.toFixed(2);
-    const suffixes = ["", "k", "M", "B", "T"];
+function formatNumber(num, isInteger = false) {
+    const roundFunc = isInteger ? Math.floor : (n) => n.toFixed(2);
+    if (num < 1000) return isInteger ? Math.floor(num) : num.toFixed(2);
+    const suffixes = ["", "k", "M", "B", "T", "P", "E"];
     const i = Math.floor(Math.log10(num) / 3);
-    return (num / Math.pow(1000, i)).toFixed(2) + suffixes[i];
+    if (i >= suffixes.length) return num.toExponential(2);
+    const scaledNum = num / Math.pow(1000, i);
+    return (isInteger ? Math.floor(scaledNum) : scaledNum.toFixed(2)) + suffixes[i];
 }
 
 // Update all UI elements
 function updateAllUI() {
     // Update milk totals
     milkTotalEl.textContent = formatNumber(state.milk);
-    cowCoinTotalEl.textContent = state.cowCoin;
+    cowCoinTotalEl.textContent = formatNumber(state.cowCoin, true);
     milkRateEl.textContent = formatNumber(calculateMilkPerSecond());
 
     // Update all upgrade cards
@@ -219,7 +261,7 @@ function updateAllUI() {
         const buttonEl = upgrade.el.querySelector('button');
 
         levelEl.textContent = upgrade.level;
-        costEl.textContent = formatNumber(upgrade.cost);
+        costEl.textContent = formatNumber(upgrade.cost, true);
         buttonEl.disabled = state.milk < upgrade.cost;
     }
 
@@ -229,10 +271,14 @@ function updateAllUI() {
     // Update referral UI
     if (state.referral.userId) {
         const baseUrl = window.location.origin + window.location.pathname;
-        referralLinkInput.value = `${baseUrl}?ref=${state.referral.userId}`;
+        const refLink = `${baseUrl}?ref=${state.referral.userId}`;
+        referralLinkInput.value = refLink;
+        referralLinkInputModal.value = refLink;
     }
     const bonusPercentage = state.referral.referralCount * state.referral.bonusPerReferral * 100;
-    refBonusDisplay.textContent = `+${bonusPercentage.toFixed(0)}`;
+    const bonusText = `+${bonusPercentage.toFixed(0)}`;
+    refBonusDisplay.textContent = bonusText;
+    refBonusDisplayModal.textContent = bonusText;
 }
 
 // --- REFERRAL LOGIC ---
@@ -248,10 +294,11 @@ function initializeReferralSystem() {
     const urlParams = new URLSearchParams(window.location.search);
     const referrerId = urlParams.get('ref');
 
-    if (referrerId && !state.referral.referredBy && referrerId !== state.referral.userId) {
+    if (referrerId && !state.referral.claimedReferral && referrerId !== state.referral.userId) {
         state.referral.referredBy = referrerId;
+        state.referral.claimedReferral = true; // Mark as claimed to prevent re-triggering
         
-        // Simulate server-side verification
+        // Simulate server-side verification and reward
         showNotification("Referans kodu algılandı, doğrulanıyor...", 2500);
         
         setTimeout(() => {
@@ -262,8 +309,22 @@ function initializeReferralSystem() {
         }, 2600);
         
         // This is a placeholder for rewarding the referrer.
-        // In a real app, this would be a server call. We'll simulate it locally.
+        // In a real app, this would be a server call.
         console.log(`User was referred by ${referrerId}. A real app would now notify the server to reward the referrer.`);
+        
+        // For simulation purposes, we store that a referral happened in local storage.
+        // The referrer will get their bonus the next time they open the game.
+        localStorage.setItem('pending_referral_for', referrerId);
+    }
+    
+    // Check if this user needs to be rewarded for referring someone.
+    const pendingReferral = localStorage.getItem('pending_referral_for');
+    if (pendingReferral && pendingReferral === state.referral.userId) {
+        state.referral.referralCount++;
+        localStorage.removeItem('pending_referral_for'); // Clear the flag
+        showNotification("Tebrikler! Bir arkadaşın senin linkinle katıldı! +%5 üretim bonusu kazandın!");
+        updateAllUI();
+        saveState();
     }
 }
 
@@ -298,6 +359,11 @@ function setupEventListeners() {
         }
     });
 
+    // Offline earnings modal
+    offlineModalClose.addEventListener('click', () => {
+        offlineEarningsModal.style.display = 'none';
+    });
+    
     // Referral modal listeners
     referralButton.addEventListener('click', () => {
         referralModal.style.display = 'flex';
@@ -320,6 +386,11 @@ function setupEventListeners() {
         document.execCommand('copy');
         showNotification("Referans linki kopyalandı!");
     });
+    copyRefLinkButtonModal.addEventListener('click', () => {
+        referralLinkInputModal.select();
+        document.execCommand('copy');
+        showNotification("Referans linki kopyalandı!");
+    });
 }
 
 // --- INITIALIZATION ---
@@ -339,6 +410,7 @@ function init() {
         gameScreen.style.display = 'flex';
         
         setupEventListeners();
+        calculateOfflineEarnings(); // Check for offline progress
         updateAllUI();
         
         // Start the game loop
