@@ -36,7 +36,7 @@
                 </div>
             </div>
             <div class="top-bar-buttons">
-                <button id="referral-button" class="icon-button" title="Arkadaşlar">👥</button>
+                <a href="https://t.me/MyCowEmpire" target="_blank" id="community-button" class="icon-button" title="Topluluk">📢</a>
                 <button id="withdraw-button" class="icon-button">
                     <img src="coin-icon.png" alt="Withdraw COW">
                 </button>
@@ -59,7 +59,7 @@
                     <p>Süt üretimini artırır.</p>
                     <p>Seviye: <span class="level">1</span></p>
                     <button class="upgrade-button">
-                        Yükselt (<span class="cost">10</span><img src="milk-icon.png" class="inline-icon" alt="Milk">)
+                        Yükselt (<span class="cost">100</span><img src="milk-icon.png" class="inline-icon" alt="Milk">)
                     </button>
                 </div>
                 <div id="upgrade-count" class="upgrade-card">
@@ -67,7 +67,7 @@
                     <p>Süt üretim adedini artırır.</p>
                     <p>Seviye: <span class="level">1</span></p>
                     <button class="upgrade-button">
-                         Yükselt (<span class="cost">25</span><img src="milk-icon.png" class="inline-icon" alt="Milk">)
+                         Yükselt (<span class="cost">250</span><img src="milk-icon.png" class="inline-icon" alt="Milk">)
                     </button>
                 </div>
                 <div id="upgrade-happiness" class="upgrade-card">
@@ -75,7 +75,7 @@
                     <p>Bonus çarpan sağlar.</p>
                     <p>Seviye: <span class="level">1</span></p>
                     <button class="upgrade-button">
-                         Yükselt (<span class="cost">50</span><img src="milk-icon.png" class="inline-icon" alt="Milk">)
+                         Yükselt (<span class="cost">500</span><img src="milk-icon.png" class="inline-icon" alt="Milk">)
                     </button>
                 </div>
             </div>
@@ -90,22 +90,18 @@
                 </div>
                 <div id="watch-ad-card" class="upgrade-card">
                     <h3>Katkıda Bulun</h3>
-                    <p>Reklam izleyerek çıkaracağımız coine fon sağlamış oluyorsunuz. 1 izlenme = tahmini +0.000047$ fiyat artışına neden olacak. Listelenen fiyat daha yüksek olacaktır izledikçe.</p>
+                    <p>Reklam izleyerek projeye destek ol! Reklam başına (1-50) $COW kazan.</p>
                     <button id="watch-ad-button" class="upgrade-button">
                         Katkıda Bulun
                     </button>
                 </div>
-            </div>
-            <div id="referral-section">
-                <h2>ARKADAŞLAR</h2>
-                <div id="referral-card" class="upgrade-card">
-                    <p>Arkadaşını davet et, ikiniz de kazanın! Arkadaşın oyuna senin linkinle başladığında 50 $COW kazanır, sen de kalıcı olarak +%5 süt üretim bonusu kazanırsın! (Bonuslar doğrulamadan sonra eklenir)</p>
-                    <p>Mevcut bonus: <span id="ref-bonus-display">+0</span>%</p>
-                    <div class="referral-link-container">
-                        <input type="text" id="referral-link" value="Yükleniyor..." readonly>
-                        <button id="copy-ref-link-button">Kopyala</button>
-                    </div>
-                </div>
+                 <a href="https://t.me/MyCowEmpire" target="_blank" id="community-card" class="upgrade-card">
+                    <h3>Topluluk</h3>
+                    <p>En son haberler ve etkinlikler için Telegram kanalımıza katılın!</p>
+                    <button class="upgrade-button">
+                        Kanala Katıl
+                    </button>
+                </a>
             </div>
         </div>
     </div>
@@ -128,8 +124,12 @@
         <div class="modal-content">
             <span id="modal-close" class="modal-close">&times;</span>
             <h2>Para Çekme</h2>
-            <p>Bu özellik şu anda aktif değildir.</p>
-            <p class="coming-soon">Yakında...</p>
+            <form id="withdraw-form">
+                <p class="withdraw-info">Minimum çekim: 100 $COW</p>
+                <input type="text" id="ton-address" placeholder="TON Cüzdan Adresiniz" required>
+                <input type="number" id="withdraw-amount" placeholder="Miktar ($COW)" required>
+                <button type="submit" id="submit-withdraw" class="upgrade-button">Çekim Talebi Oluştur</button>
+            </form>
         </div>
     </div>
 
@@ -138,7 +138,7 @@
             <span id="referral-modal-close" class="modal-close">&times;</span>
             <h2>ARKADAŞLAR</h2>
             <div class="upgrade-card">
-                <p>Arkadaşını davet et, ikiniz de kazanın! Arkadaşın oyuna senin linkinle başladığında 50 $COW kazanır, sen de kalıcı olarak +%5 süt üretim bonusu kazanırsın!</p>
+                <p>Arkadaşını davet et, ikiniz de kazanın! Arkadaşın oyuna senin linkinle başladığında 50 $COW kazanır, sen de kalıcı olarak +%5 süt üretim bonusu kazanırsın! (Referans bonusları doğrulamadan sonra eklenecektir)</p>
                 <p>Mevcut bonus: <span class="ref-bonus-display-modal">+0</span>%</p>
                 <div class="referral-link-container">
                     <input type="text" id="referral-link-modal" value="Yükleniyor..." readonly>

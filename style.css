@@ -184,9 +184,10 @@ h1, h2, h3, button {
     line-height: 1;
 }
 
-#referral-button {
+#community-button {
     font-size: 2em;
     line-height: 1;
+    text-decoration: none;
 }
 
 .main-content {
@@ -251,7 +252,7 @@ h1, h2, h3, button {
     text-align: center;
     overflow-y: auto; /* Allow this container to scroll if its content is too tall */
     flex-shrink: 1; /* Allow container to shrink and enable scrolling */
-    max-height: 45%; /* Prevent it from taking too much vertical space */
+    max-height: 50%; /* Adjusted from 45% */
 }
 
 .upgrades-container h2 {
@@ -261,7 +262,7 @@ h1, h2, h3, button {
 
 .upgrades-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 10px;
     margin-bottom: 10px;
 }
@@ -280,6 +281,8 @@ h1, h2, h3, button {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    text-decoration: none;
+    color: var(--text-color);
 }
 
 .upgrade-card h3 {
@@ -347,8 +350,7 @@ h1, h2, h3, button {
 }
 
 #referral-section {
-    padding: 10px;
-    padding-top: 0;
+    display: none; /* Hide instead of deleting to prevent errors if JS references it */
 }
 
 #referral-section h2 {
@@ -405,6 +407,7 @@ h1, h2, h3, button {
     display: flex;
     justify-content: center;
     align-items: center;
+    z-index: 2000;
 }
 
 .modal-content {
@@ -431,6 +434,27 @@ h1, h2, h3, button {
     font-size: 2em;
     cursor: pointer;
     color: var(--text-color);
+}
+
+.withdraw-info {
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+#withdraw-form input {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 2px solid #d2b48c;
+    border-radius: 8px;
+    font-size: 1em;
+    box-sizing: border-box;
+}
+
+#withdraw-form button {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.1em;
 }
 
 .offline-reward {
