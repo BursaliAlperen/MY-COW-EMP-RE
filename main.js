@@ -11,7 +11,6 @@ const mainCowEl = document.getElementById('main-cow');
 const milkSplashEl = document.getElementById('milk-splash');
 
 const swapButton = document.getElementById('swap-button');
-const referralButton = document.getElementById('referral-button');
 
 // Ad button
 const watchAdButton = document.getElementById('watch-ad-button');
@@ -21,21 +20,17 @@ const withdrawModal = document.getElementById('withdraw-modal');
 const modalClose = document.getElementById('modal-close');
 const notificationContainer = document.getElementById('notification-container');
 
-// Referral System Elements
-const referralModal = document.getElementById('referral-modal');
-const referralModalClose = document.getElementById('referral-modal-close');
-const referralLinkInput = document.getElementById('referral-link');
-const copyRefLinkButton = document.getElementById('copy-ref-link-button');
-const refBonusDisplay = document.getElementById('ref-bonus-display');
-const referralLinkInputModal = document.getElementById('referral-link-modal');
-const copyRefLinkButtonModal = document.getElementById('copy-ref-link-button-modal');
-const refBonusDisplayModal = document.querySelector('.ref-bonus-display-modal');
-
 // Offline Earnings Elements
 const offlineEarningsModal = document.getElementById('offline-earnings-modal');
 const offlineModalClose = document.getElementById('offline-modal-close');
 const claimOfflineEarningsButton = document.getElementById('claim-offline-earnings');
 const offlineMilkEarnedEl = document.getElementById('offline-milk-earned');
+
+// Withdraw Form Elements
+const withdrawForm = document.getElementById('withdraw-form');
+const tonAddressInput = document.getElementById('ton-address');
+const withdrawAmountInput = document.getElementById('withdraw-amount');
+const submitWithdrawButton = document.getElementById('submit-withdraw');
 
 // --- GAME STATE ---
 const state = {
@@ -44,13 +39,6 @@ const state = {
     lastUpdate: Date.now(),
     swapCost: 50000,
     baseRate: 0.5,
-    referral: {
-        userId: null,
-        referralCount: 0, // Number of people this user has referred
-        bonusPerReferral: 0.05, // 5% bonus per referral
-        referredBy: null, // ID of the user who referred this player
-        claimedReferral: false, // Has this user claimed their "referred by" bonus?
-    },
     upgrades: {
         quality: { level: 1, multiplier: 1, baseCost: 100, costGrowth: 2.0, effect: 0.10, el: document.getElementById('upgrade-quality') },
         count: { level: 1, multiplier: 1, baseCost: 250, costGrowth: 2.1, effect: 0.20, el: document.getElementById('upgrade-count') },
@@ -71,7 +59,6 @@ function saveState() {
         milk: state.milk,
         cowCoin: state.cowCoin,
         lastUpdate: state.lastUpdate,
-        referral: state.referral, // Save referral state
         upgrades: {
             quality: { level: state.upgrades.quality.level },
             count: { level: state.upgrades.count.level },
@@ -89,10 +76,6 @@ function loadState() {
         state.milk = savedState.milk || 0;
         state.cowCoin = savedState.cowCoin || 0;
         state.lastUpdate = savedState.lastUpdate || Date.now();
-
-        if (savedState.referral) {
-            state.referral = { ...state.referral, ...savedState.referral };
-        }
 
         if (savedState.upgrades) {
             state.upgrades.quality.level = savedState.upgrades.quality?.level || 1;
@@ -115,10 +98,9 @@ function recalculateMultipliers() {
 
 // Calculate milk production per second
 function calculateMilkPerSecond() {
-    const { baseRate, upgrades, referral } = state;
+    const { baseRate, upgrades } = state;
     const { quality, count, happiness } = upgrades;
-    const referralBonus = 1 + (referral.referralCount * referral.bonusPerReferral);
-    return baseRate * quality.multiplier * count.multiplier * happiness.multiplier * referralBonus;
+    return baseRate * quality.multiplier * count.multiplier * happiness.multiplier;
 }
 
 // Offline earnings calculation
@@ -190,6 +172,82 @@ function produceMilk() {
     milkSplashEl.classList.add('animate');
 }
 
+async function handleWithdrawal(event) {
+    event.preventDefault();
+    submitWithdrawButton.disabled = true;
+    submitWithdrawButton.textContent = "Gönderiliyor...";
+
+    const amount = parseInt(withdrawAmountInput.value, 10);
+    const address = tonAddressInput.value.trim();
+    const webhookURL = "https://eos5yjgvkh1gbmh.m.pipedream.net";
+
+    if (!address) {
+        showNotification("Lütfen geçerli bir TON adresi girin.");
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
+        return;
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+        showNotification("Lütfen geçerli bir miktar girin.");
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
+        return;
+    }
+
+    if (amount < 100) {
+        showNotification("Minimum çekim miktarı 100 $COW'dur.");
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
+        return;
+    }
+
+    if (state.cowCoin < amount) {
+        showNotification("Yetersiz $COW bakiyesi!");
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
+        return;
+    }
+
+    // Optimistically subtract the amount
+    state.cowCoin -= amount;
+    updateAllUI();
+
+    try {
+        const response = await fetch(webhookURL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ton_address: address,
+                amount: amount
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Webhook failed with status: ${response.status}`);
+        }
+
+        // Success
+        console.log(`Withdrawal Request Sent: ${amount} $COW to ${address}`);
+        showNotification(`${amount} $COW çekim talebiniz başarıyla alındı!`);
+        withdrawModal.style.display = 'none';
+        withdrawForm.reset();
+        saveState();
+
+    } catch (error) {
+        console.error("Webhook submission failed:", error);
+        showNotification("Çekim talebi gönderilemedi. Lütfen tekrar deneyin.");
+        // Revert the state if the request failed
+        state.cowCoin += amount;
+        updateAllUI();
+    } finally {
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
+    }
+}
+
 // Swap milk for $COW
 function swapMilkForCow() {
     if (state.milk >= state.swapCost) {
@@ -204,8 +262,9 @@ function swapMilkForCow() {
 // Buy an upgrade
 function buyUpgrade(upgradeName) {
     const upgrade = state.upgrades[upgradeName];
-    if (state.milk >= upgrade.cost) { // Check against milk, not cowCoin
-        state.milk -= upgrade.cost;
+    const cost = calculateCost(upgrade); // Always calculate the latest cost
+    if (state.milk >= cost) { 
+        state.milk -= cost;
         upgrade.level++;
         upgrade.multiplier = 1 + (upgrade.level - 1) * upgrade.effect; // Recalculate multiplier
         updateAllUI();
@@ -215,7 +274,8 @@ function buyUpgrade(upgradeName) {
 
 // Calculate the cost of an upgrade
 function calculateCost(upgrade) {
-    return Math.ceil(upgrade.baseCost * Math.pow(upgrade.costGrowth, upgrade.level - 1));
+    // This creates an infinitely scaling cost.
+    return Math.floor(upgrade.baseCost * Math.pow(upgrade.costGrowth, upgrade.level - 1));
 }
 
 // --- UI RENDERING ---
@@ -267,65 +327,6 @@ function updateAllUI() {
 
     // Update swap button state
     swapButton.disabled = state.milk < state.swapCost;
-    
-    // Update referral UI
-    if (state.referral.userId) {
-        const baseUrl = window.location.origin + window.location.pathname;
-        const refLink = `${baseUrl}?ref=${state.referral.userId}`;
-        referralLinkInput.value = refLink;
-        referralLinkInputModal.value = refLink;
-    }
-    const bonusPercentage = state.referral.referralCount * state.referral.bonusPerReferral * 100;
-    const bonusText = `+${bonusPercentage.toFixed(0)}`;
-    refBonusDisplay.textContent = bonusText;
-    refBonusDisplayModal.textContent = bonusText;
-}
-
-// --- REFERRAL LOGIC ---
-function initializeReferralSystem() {
-    // 1. Assign a user ID if they don't have one.
-    if (!state.referral.userId) {
-        // Try to get from Telegram, otherwise generate a random one.
-        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-        state.referral.userId = tgUser ? `tg_${tgUser.id}` : `user_${Date.now()}${Math.random().toString(36).substr(2, 9)}`;
-    }
-
-    // 2. Check if the user was referred.
-    const urlParams = new URLSearchParams(window.location.search);
-    const referrerId = urlParams.get('ref');
-
-    if (referrerId && !state.referral.claimedReferral && referrerId !== state.referral.userId) {
-        state.referral.referredBy = referrerId;
-        state.referral.claimedReferral = true; // Mark as claimed to prevent re-triggering
-        
-        // Simulate server-side verification and reward
-        showNotification("Referans kodu algılandı, doğrulanıyor...", 2500);
-        
-        setTimeout(() => {
-            state.cowCoin += 50; // Welcome bonus for being referred
-            showNotification("Doğrulama başarılı! Arkadaş bonusu olarak 50 $COW kazandın!");
-            updateAllUI();
-            saveState(); // Save state immediately after reward
-        }, 2600);
-        
-        // This is a placeholder for rewarding the referrer.
-        // In a real app, this would be a server call.
-        console.log(`User was referred by ${referrerId}. A real app would now notify the server to reward the referrer.`);
-        
-        // For simulation purposes, we store that a referral happened in local storage.
-        // The referrer will get their bonus the next time they open the game.
-        localStorage.setItem('pending_referral_for', referrerId);
-    }
-    
-    // Check if this user needs to be rewarded for referring someone.
-    const pendingReferral = localStorage.getItem('pending_referral_for');
-    if (pendingReferral && pendingReferral === state.referral.userId) {
-        state.referral.referralCount++;
-        localStorage.removeItem('pending_referral_for'); // Clear the flag
-        showNotification("Tebrikler! Bir arkadaşın senin linkinle katıldı! +%5 üretim bonusu kazandın!");
-        updateAllUI();
-        saveState();
-    }
 }
 
 // --- EVENT LISTENERS ---
@@ -359,45 +360,22 @@ function setupEventListeners() {
         }
     });
 
+    // Withdraw form submission
+    withdrawForm.addEventListener('submit', handleWithdrawal);
+
     // Offline earnings modal
     offlineModalClose.addEventListener('click', () => {
         offlineEarningsModal.style.display = 'none';
     });
     
-    // Referral modal listeners
-    referralButton.addEventListener('click', () => {
-        referralModal.style.display = 'flex';
-    });
-    referralModalClose.addEventListener('click', () => {
-        referralModal.style.display = 'none';
-    });
-    referralModal.addEventListener('click', (e) => {
-        if (e.target === referralModal) {
-            referralModal.style.display = 'none';
-        }
-    });
-
     // Ad button listener (in the upgrades section)
     watchAdButton.addEventListener('click', triggerAd);
-
-    // Referral link copy button
-    copyRefLinkButton.addEventListener('click', () => {
-        referralLinkInput.select();
-        document.execCommand('copy');
-        showNotification("Referans linki kopyalandı!");
-    });
-    copyRefLinkButtonModal.addEventListener('click', () => {
-        referralLinkInputModal.select();
-        document.execCommand('copy');
-        showNotification("Referans linki kopyalandı!");
-    });
 }
 
 // --- INITIALIZATION ---
 function init() {
     loadState(); // Load saved progress
     initAdService(); // Initialize the new ad service
-    initializeReferralSystem(); // Setup user ID and check for referral
 
     // Show loading screen
     setTimeout(() => {
