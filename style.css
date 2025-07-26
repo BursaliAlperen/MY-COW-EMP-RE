@@ -184,6 +184,11 @@ h1, h2, h3, button {
     line-height: 1;
 }
 
+#referral-button {
+    font-size: 2em;
+    line-height: 1;
+}
+
 .main-content {
     flex-grow: 1;
     display: flex;
@@ -244,8 +249,9 @@ h1, h2, h3, button {
     padding: 15px;
     border-top: 5px solid #d2b48c;
     text-align: center;
-    flex-shrink: 0; /* Prevent this container from shrinking */
     overflow-y: auto; /* Allow this container to scroll if its content is too tall */
+    flex-shrink: 1; /* Allow container to shrink and enable scrolling */
+    max-height: 45%; /* Prevent it from taking too much vertical space */
 }
 
 .upgrades-container h2 {
@@ -333,11 +339,55 @@ h1, h2, h3, button {
 }
 
 #swap-card {
-    grid-column: 1 / span 3;
+    grid-column: 1 / 2;
 }
 
 #watch-ad-card {
+    grid-column: 2 / 3;
+}
+
+#referral-section {
+    padding: 10px;
+    padding-top: 0;
+}
+
+#referral-section h2 {
+     margin: 10px 0 10px 0;
+     color: var(--brown);
+}
+
+.referral-link-container {
+    display: flex;
     margin-top: 10px;
+}
+
+.referral-link-container input {
+    flex-grow: 1;
+    border: 2px solid #d2b48c;
+    border-radius: 8px 0 0 8px;
+    padding: 8px;
+    background-color: #f3eade;
+    font-size: 0.9em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.referral-link-container button {
+    background-color: var(--primary-color);
+    color: var(--text-color);
+    border: none;
+    border-radius: 0 8px 8px 0;
+    padding: 0 15px;
+    font-size: 0.9em;
+    cursor: pointer;
+    border: 2px solid #d2b48c;
+    border-left: none;
+    transition: background-color 0.2s;
+}
+
+.referral-link-container button:hover {
+    background-color: #ffca28;
 }
 
 /* Modal */
@@ -362,6 +412,12 @@ h1, h2, h3, button {
     max-width: 350px;
     position: relative;
     border: 5px solid var(--brown);
+}
+
+.modal-content .upgrade-card {
+    border: none;
+    background: transparent;
+    padding: 0;
 }
 
 .modal-close {

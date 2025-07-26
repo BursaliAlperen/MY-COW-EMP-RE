@@ -11,7 +11,7 @@ const mainCowEl = document.getElementById('main-cow');
 const milkSplashEl = document.getElementById('milk-splash');
 
 const swapButton = document.getElementById('swap-button');
-const topAdButton = document.getElementById('top-ad-button'); // New ad button
+const referralButton = document.getElementById('referral-button'); // Renamed from top-ad-button
 
 // Ad button
 const watchAdButton = document.getElementById('watch-ad-button');
@@ -21,12 +21,25 @@ const withdrawModal = document.getElementById('withdraw-modal');
 const modalClose = document.getElementById('modal-close');
 const notificationContainer = document.getElementById('notification-container');
 
+// Referral System Elements
+const referralModal = document.getElementById('referral-modal');
+const referralModalClose = document.getElementById('referral-modal-close');
+const referralLinkInput = document.getElementById('referral-link');
+const copyRefLinkButton = document.getElementById('copy-ref-link-button');
+const refBonusDisplay = document.getElementById('ref-bonus-display');
+
 // --- GAME STATE ---
 const state = {
     milk: 0,
     cowCoin: 0,
     swapCost: 50000,
     baseRate: 0.5,
+    referral: {
+        userId: null,
+        referralCount: 0, // Number of people this user has referred
+        bonusPerReferral: 0.05, // 5% bonus per referral
+        referredBy: null // ID of the user who referred this player
+    },
     upgrades: {
         quality: { level: 1, multiplier: 1, baseCost: 100, costGrowth: 1.15, effect: 0.05, el: document.getElementById('upgrade-quality') },
         count: { level: 1, multiplier: 1, baseCost: 250, costGrowth: 1.18, effect: 0.1, el: document.getElementById('upgrade-count') },
@@ -46,6 +59,7 @@ function saveState() {
     const stateToSave = {
         milk: state.milk,
         cowCoin: state.cowCoin,
+        referral: state.referral, // Save referral state
         upgrades: {
             quality: { level: state.upgrades.quality.level },
             count: { level: state.upgrades.count.level },
@@ -62,6 +76,10 @@ function loadState() {
         
         state.milk = savedState.milk || 0;
         state.cowCoin = savedState.cowCoin || 0;
+
+        if (savedState.referral) {
+            state.referral = { ...state.referral, ...savedState.referral };
+        }
 
         if (savedState.upgrades) {
             state.upgrades.quality.level = savedState.upgrades.quality?.level || 1;
@@ -84,9 +102,10 @@ function recalculateMultipliers() {
 
 // Calculate milk production per second
 function calculateMilkPerSecond() {
-    const { baseRate, upgrades } = state;
+    const { baseRate, upgrades, referral } = state;
     const { quality, count, happiness } = upgrades;
-    return baseRate * quality.multiplier * count.multiplier * happiness.multiplier;
+    const referralBonus = 1 + (referral.referralCount * referral.bonusPerReferral);
+    return baseRate * quality.multiplier * count.multiplier * happiness.multiplier * referralBonus;
 }
 
 // Function to handle ad logic
@@ -97,9 +116,8 @@ function triggerAd() {
         return;
     }
 
-    // Disable buttons to prevent multiple clicks
+    // Disable button to prevent multiple clicks
     watchAdButton.disabled = true;
-    topAdButton.disabled = true;
 
     window.showGiga()
         .then(() => {
@@ -118,7 +136,6 @@ function triggerAd() {
         .finally(() => {
             // Re-enable buttons regardless of outcome
             watchAdButton.disabled = false;
-            topAdButton.disabled = false;
         });
 }
 
@@ -141,6 +158,7 @@ function swapMilkForCow() {
         state.cowCoin += 1;
         updateAllUI();
         audioManager.playSound('upgrade');
+        showNotification(`1 $COW aldınız!`);
     }
 }
 
@@ -164,16 +182,16 @@ function calculateCost(upgrade) {
 // --- UI RENDERING ---
 
 // Show a temporary notification message
-function showNotification(message) {
+function showNotification(message, duration = 4000) {
     const notification = document.createElement('div');
     notification.className = 'notification';
     notification.textContent = message;
     notificationContainer.appendChild(notification);
 
-    // Remove the notification after the animation ends
+    // Remove the notification after the animation ends or the specified duration
     setTimeout(() => {
         notification.remove();
-    }, 4000);
+    }, duration);
 }
 
 // Format large numbers
@@ -207,6 +225,46 @@ function updateAllUI() {
 
     // Update swap button state
     swapButton.disabled = state.milk < state.swapCost;
+    
+    // Update referral UI
+    if (state.referral.userId) {
+        const baseUrl = window.location.origin + window.location.pathname;
+        referralLinkInput.value = `${baseUrl}?ref=${state.referral.userId}`;
+    }
+    const bonusPercentage = state.referral.referralCount * state.referral.bonusPerReferral * 100;
+    refBonusDisplay.textContent = `+${bonusPercentage.toFixed(0)}`;
+}
+
+// --- REFERRAL LOGIC ---
+function initializeReferralSystem() {
+    // 1. Assign a user ID if they don't have one.
+    if (!state.referral.userId) {
+        // Try to get from Telegram, otherwise generate a random one.
+        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        state.referral.userId = tgUser ? `tg_${tgUser.id}` : `user_${Date.now()}${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    // 2. Check if the user was referred.
+    const urlParams = new URLSearchParams(window.location.search);
+    const referrerId = urlParams.get('ref');
+
+    if (referrerId && !state.referral.referredBy && referrerId !== state.referral.userId) {
+        state.referral.referredBy = referrerId;
+        
+        // Simulate server-side verification
+        showNotification("Referans kodu algılandı, doğrulanıyor...", 2500);
+        
+        setTimeout(() => {
+            state.cowCoin += 50; // Welcome bonus for being referred
+            showNotification("Doğrulama başarılı! Arkadaş bonusu olarak 50 $COW kazandın!");
+            updateAllUI();
+            saveState(); // Save state immediately after reward
+        }, 2600);
+        
+        // This is a placeholder for rewarding the referrer.
+        // In a real app, this would be a server call. We'll simulate it locally.
+        console.log(`User was referred by ${referrerId}. A real app would now notify the server to reward the referrer.`);
+    }
 }
 
 // --- EVENT LISTENERS ---
@@ -240,15 +298,35 @@ function setupEventListeners() {
         }
     });
 
-    // Ad button listeners
+    // Referral modal listeners
+    referralButton.addEventListener('click', () => {
+        referralModal.style.display = 'flex';
+    });
+    referralModalClose.addEventListener('click', () => {
+        referralModal.style.display = 'none';
+    });
+    referralModal.addEventListener('click', (e) => {
+        if (e.target === referralModal) {
+            referralModal.style.display = 'none';
+        }
+    });
+
+    // Ad button listener (in the upgrades section)
     watchAdButton.addEventListener('click', triggerAd);
-    topAdButton.addEventListener('click', triggerAd);
+
+    // Referral link copy button
+    copyRefLinkButton.addEventListener('click', () => {
+        referralLinkInput.select();
+        document.execCommand('copy');
+        showNotification("Referans linki kopyalandı!");
+    });
 }
 
 // --- INITIALIZATION ---
 function init() {
     loadState(); // Load saved progress
     initAdService(); // Initialize the new ad service
+    initializeReferralSystem(); // Setup user ID and check for referral
 
     // Show loading screen
     setTimeout(() => {
