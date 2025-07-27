@@ -172,80 +172,43 @@ function produceMilk() {
     milkSplashEl.classList.add('animate');
 }
 
-async function handleWithdrawal(event) {
+function handleWithdrawal(event) {
     event.preventDefault();
-    submitWithdrawButton.disabled = true;
-    submitWithdrawButton.textContent = "Gönderiliyor...";
-
     const amount = parseInt(withdrawAmountInput.value, 10);
     const address = tonAddressInput.value.trim();
-    const webhookURL = "https://eos5yjgvkh1gbmh.m.pipedream.net";
 
     if (!address) {
         showNotification("Lütfen geçerli bir TON adresi girin.");
-        submitWithdrawButton.disabled = false;
-        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
         return;
     }
 
     if (isNaN(amount) || amount <= 0) {
         showNotification("Lütfen geçerli bir miktar girin.");
-        submitWithdrawButton.disabled = false;
-        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
         return;
     }
 
     if (amount < 100) {
         showNotification("Minimum çekim miktarı 100 $COW'dur.");
-        submitWithdrawButton.disabled = false;
-        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
         return;
     }
 
     if (state.cowCoin < amount) {
         showNotification("Yetersiz $COW bakiyesi!");
-        submitWithdrawButton.disabled = false;
-        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
         return;
     }
 
-    // Optimistically subtract the amount
     state.cowCoin -= amount;
+    
+    // Here you would typically send the request to your backend.
+    // For now, we just simulate success.
+    console.log(`Withdrawal Request: ${amount} $COW to ${address}`);
+    showNotification(`${amount} $COW çekim talebiniz alındı!`);
+    
+    // Close modal and update UI
+    withdrawModal.style.display = 'none';
+    withdrawForm.reset();
     updateAllUI();
-
-    try {
-        const response = await fetch(webhookURL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                ton_address: address,
-                amount: amount
-            }),
-        });
-
-        if (!response.ok) {
-            throw new Error(`Webhook failed with status: ${response.status}`);
-        }
-
-        // Success
-        console.log(`Withdrawal Request Sent: ${amount} $COW to ${address}`);
-        showNotification(`${amount} $COW çekim talebiniz başarıyla alındı!`);
-        withdrawModal.style.display = 'none';
-        withdrawForm.reset();
-        saveState();
-
-    } catch (error) {
-        console.error("Webhook submission failed:", error);
-        showNotification("Çekim talebi gönderilemedi. Lütfen tekrar deneyin.");
-        // Revert the state if the request failed
-        state.cowCoin += amount;
-        updateAllUI();
-    } finally {
-        submitWithdrawButton.disabled = false;
-        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
-    }
+    saveState();
 }
 
 // Swap milk for $COW
@@ -262,9 +225,8 @@ function swapMilkForCow() {
 // Buy an upgrade
 function buyUpgrade(upgradeName) {
     const upgrade = state.upgrades[upgradeName];
-    const cost = calculateCost(upgrade); // Always calculate the latest cost
-    if (state.milk >= cost) { 
-        state.milk -= cost;
+    if (state.milk >= upgrade.cost) { // Check against milk, not cowCoin
+        state.milk -= upgrade.cost;
         upgrade.level++;
         upgrade.multiplier = 1 + (upgrade.level - 1) * upgrade.effect; // Recalculate multiplier
         updateAllUI();
