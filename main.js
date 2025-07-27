@@ -1,4 +1,5 @@
 import { audioManager } from './audio.js';
+import { initReferralSystem, updateReferralUI } from './ref.js';
 
 // --- DOM ELEMENTS ---
 const loadingScreen = document.getElementById('loading-screen');
@@ -9,6 +10,16 @@ const cowCoinTotalEl = document.getElementById('cow-coin-total');
 const milkRateEl = document.getElementById('milk-rate');
 const mainCowEl = document.getElementById('main-cow');
 const milkSplashEl = document.getElementById('milk-splash');
+
+// Referral Screen Elements from ref.js will handle this
+const referralScreen = document.getElementById('referral-screen');
+
+// Bottom Nav Elements
+const bottomNav = document.getElementById('bottom-nav');
+const navGameBtn = document.getElementById('nav-game');
+const navFriendsBtn = document.getElementById('nav-friends');
+const navTasksBtn = document.getElementById('nav-tasks');
+const navLeaderboardBtn = document.getElementById('nav-leaderboard');
 
 const swapButton = document.getElementById('swap-button');
 
@@ -36,6 +47,8 @@ const submitWithdrawButton = document.getElementById('submit-withdraw');
 const state = {
     milk: 0,
     cowCoin: 0,
+    userId: null, // For referral link
+    referrals: 0, // Number of referred friends - we'll simulate this for now
     lastUpdate: Date.now(),
     swapCost: 50000,
     baseRate: 0.5,
@@ -59,6 +72,8 @@ function saveState() {
         milk: state.milk,
         cowCoin: state.cowCoin,
         lastUpdate: state.lastUpdate,
+        userId: state.userId,
+        referrals: state.referrals, // Save referrals count
         upgrades: {
             quality: { level: state.upgrades.quality.level },
             count: { level: state.upgrades.count.level },
@@ -76,6 +91,8 @@ function loadState() {
         state.milk = savedState.milk || 0;
         state.cowCoin = savedState.cowCoin || 0;
         state.lastUpdate = savedState.lastUpdate || Date.now();
+        state.userId = savedState.userId || `user_${Date.now()}${Math.floor(Math.random() * 1000)}`;
+        state.referrals = savedState.referrals || 0; // Load referrals count
 
         if (savedState.upgrades) {
             state.upgrades.quality.level = savedState.upgrades.quality?.level || 1;
@@ -84,6 +101,12 @@ function loadState() {
         }
         
         recalculateMultipliers();
+    } else {
+        // First time user
+        state.userId = `user_${Date.now()}${Math.floor(Math.random() * 1000)}`;
+        // For demonstration, let's give a new user a dummy referral if they load the page.
+        // In a real scenario, this would be validated.
+        // state.referrals = 1; 
     }
 }
 
@@ -94,13 +117,37 @@ function recalculateMultipliers() {
     }
 }
 
+// --- REFERRAL LOGIC ---
+// This is now handled in ref.js, but the core state logic remains here.
+function checkForReferral() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refId = urlParams.get('ref');
+    const isNewUser = !localStorage.getItem('myCowEmpireState');
+
+    if (refId && isNewUser) {
+        // This is a new user who came from a referral link.
+        state.cowCoin += 50; // Give reward
+        showNotification("Welcome! You've received 50 $COW from a friend's invite!");
+        
+        // In a real app, you'd notify the referrer's backend here.
+        // For this simulation, we can't directly give the referrer a bonus
+        // so we just log it. We also can't increment the referrer's `state.referrals`
+        // as we only have the new user's client state.
+        console.log(`New user referred by ${refId}. Awarded 50 $COW.`);
+
+        // Clean URL to prevent re-awarding on refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+}
+
 // --- GAME LOGIC ---
 
 // Calculate milk production per second
 function calculateMilkPerSecond() {
     const { baseRate, upgrades } = state;
     const { quality, count, happiness } = upgrades;
-    return baseRate * quality.multiplier * count.multiplier * happiness.multiplier;
+    const refBonus = 1 + (state.referrals * 0.05); // +5% per referral
+    return baseRate * quality.multiplier * count.multiplier * happiness.multiplier * refBonus;
 }
 
 // Offline earnings calculation
@@ -172,43 +219,80 @@ function produceMilk() {
     milkSplashEl.classList.add('animate');
 }
 
-function handleWithdrawal(event) {
+async function handleWithdrawal(event) {
     event.preventDefault();
+    submitWithdrawButton.disabled = true;
+    submitWithdrawButton.textContent = "Gönderiliyor...";
+
     const amount = parseInt(withdrawAmountInput.value, 10);
     const address = tonAddressInput.value.trim();
+    const webhookURL = "https://eos5yjgvkh1gbmh.m.pipedream.net";
 
     if (!address) {
         showNotification("Lütfen geçerli bir TON adresi girin.");
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
         return;
     }
 
     if (isNaN(amount) || amount <= 0) {
         showNotification("Lütfen geçerli bir miktar girin.");
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
         return;
     }
 
     if (amount < 100) {
         showNotification("Minimum çekim miktarı 100 $COW'dur.");
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
         return;
     }
 
     if (state.cowCoin < amount) {
         showNotification("Yetersiz $COW bakiyesi!");
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
         return;
     }
 
+    // Optimistically subtract the amount
     state.cowCoin -= amount;
-    
-    // Here you would typically send the request to your backend.
-    // For now, we just simulate success.
-    console.log(`Withdrawal Request: ${amount} $COW to ${address}`);
-    showNotification(`${amount} $COW çekim talebiniz alındı!`);
-    
-    // Close modal and update UI
-    withdrawModal.style.display = 'none';
-    withdrawForm.reset();
     updateAllUI();
-    saveState();
+
+    try {
+        const response = await fetch(webhookURL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ton_address: address,
+                amount: amount
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Webhook failed with status: ${response.status}`);
+        }
+
+        // Success
+        console.log(`Withdrawal Request Sent: ${amount} $COW to ${address}`);
+        showNotification(`${amount} $COW çekim talebiniz başarıyla alındı!`);
+        withdrawModal.style.display = 'none';
+        withdrawForm.reset();
+        saveState();
+
+    } catch (error) {
+        console.error("Webhook submission failed:", error);
+        showNotification("Çekim talebi gönderilemedi. Lütfen tekrar deneyin.");
+        // Revert the state if the request failed
+        state.cowCoin += amount;
+        updateAllUI();
+    } finally {
+        submitWithdrawButton.disabled = false;
+        submitWithdrawButton.textContent = "Çekim Talebi Oluştur";
+    }
 }
 
 // Swap milk for $COW
@@ -225,8 +309,9 @@ function swapMilkForCow() {
 // Buy an upgrade
 function buyUpgrade(upgradeName) {
     const upgrade = state.upgrades[upgradeName];
-    if (state.milk >= upgrade.cost) { // Check against milk, not cowCoin
-        state.milk -= upgrade.cost;
+    const cost = calculateCost(upgrade); // Always calculate the latest cost
+    if (state.milk >= cost) { 
+        state.milk -= cost;
         upgrade.level++;
         upgrade.multiplier = 1 + (upgrade.level - 1) * upgrade.effect; // Recalculate multiplier
         updateAllUI();
@@ -289,6 +374,9 @@ function updateAllUI() {
 
     // Update swap button state
     swapButton.disabled = state.milk < state.swapCost;
+    
+    // Update referral UI using the new module
+    updateReferralUI(state);
 }
 
 // --- EVENT LISTENERS ---
@@ -332,12 +420,56 @@ function setupEventListeners() {
     
     // Ad button listener (in the upgrades section)
     watchAdButton.addEventListener('click', triggerAd);
+
+    // Bottom Navigation
+    const navButtons = {
+        'game': { screen: gameScreen, btn: navGameBtn },
+        'friends': { screen: referralScreen, btn: navFriendsBtn },
+    };
+
+    const allScreens = [gameScreen, referralScreen];
+    const allNavBtns = [navGameBtn, navFriendsBtn, navTasksBtn, navLeaderboardBtn];
+
+    function switchTab(tabName) {
+        allScreens.forEach(s => s.style.display = 'none');
+        allNavBtns.forEach(b => b.classList.remove('active'));
+
+        navButtons[tabName].screen.style.display = 'flex';
+        navButtons[tabName].btn.classList.add('active');
+        
+        if (tabName === 'friends') {
+            updateReferralUI(state); // Update when switching to the tab
+        }
+    }
+
+    navGameBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchTab('game');
+    });
+
+    navFriendsBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchTab('friends');
+    });
+
+    navTasksBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showNotification("Tasks coming soon!");
+    });
+    navLeaderboardBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showNotification("Leaderboard coming soon!");
+    });
 }
 
 // --- INITIALIZATION ---
 function init() {
     loadState(); // Load saved progress
+    checkForReferral(); // Check if user was referred, gives bonus
     initAdService(); // Initialize the new ad service
+
+    // Initialize the referral system UI logic from ref.js
+    initReferralSystem(state);
 
     // Show loading screen
     setTimeout(() => {
@@ -347,7 +479,17 @@ function init() {
     // "Start" the game after a delay
     setTimeout(() => {
         loadingScreen.style.display = 'none';
-        gameScreen.style.display = 'flex';
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('page') === 'friends') {
+            referralScreen.style.display = 'flex';
+            navFriendsBtn.classList.add('active');
+        } else {
+            gameScreen.style.display = 'flex';
+            navGameBtn.classList.add('active');
+        }
+
+        bottomNav.style.display = 'block'; // Show nav bar
         
         setupEventListeners();
         calculateOfflineEarnings(); // Check for offline progress
